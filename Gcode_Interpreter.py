@@ -1,9 +1,6 @@
 import re
-from circleInterpolation import *
 import numpy as np
 import plotly.graph_objects as go
-
-# path = r'C:\Users\luisd\Downloads\TecLogo_0004.ngc'
 
 def get_point(char,s):
     res = re.split('([-+]?\d+\.\d+)|([-+]?\d+)', s.strip())
@@ -69,11 +66,14 @@ def arcInterpolation_3(x1, x2, y1, y2, R, I, J, resolution = 50, G02=True):
 
     return arc[:, 0], arc[:, 1]
 
-def gCode_interpreter(path, verbose=False):
+def gCode_interpreter(g_code, path = None, verbose=False):
 
     command, X, Y, Z, R, I, J = [], [], [], [], [], [], []
 
-    g_code = np.array(open(path, 'r').read().split('\n'))
+    if path != None:
+        g_code = np.array(open(path, 'r').read().split('\n'))
+
+    g_code = np.array(g_code.split('\n'))
 
     for element in g_code:
         try:
@@ -133,6 +133,7 @@ def gCode_interpreter(path, verbose=False):
             pass
 
     coordinates = np.array(coordinates)
+
 
     if verbose:
         fig = go.Figure(data=[go.Scatter3d(x=coordinates[:, 0], y=coordinates[:, 1], z=coordinates[:, 2],

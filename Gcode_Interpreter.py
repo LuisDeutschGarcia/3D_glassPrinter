@@ -68,12 +68,12 @@ def arcInterpolation_3(x1, x2, y1, y2, R, I, J, resolution = 50, G02=True):
 
 def gCode_interpreter(g_code, path = None, verbose=False):
 
-    command, X, Y, Z, R, I, J = [], [], [], [], [], [], []
+    command, X, Y, Z, R, I, J, P, F, S = [], [], [], [], [], [], [], [], [], []
 
     if path != None:
         g_code = np.array(open(path, 'r').read().split('\n'))
-
-    g_code = np.array(g_code.split('\n'))
+    else:
+        g_code = np.array(g_code.split('\n'))
 
     for element in g_code:
         try:
@@ -91,6 +91,27 @@ def gCode_interpreter(g_code, path = None, verbose=False):
                     J.append(get_point("J", element))
                 elif 'J' not in element and element != '':
                     J.append(0)
+                if 'P' in element:
+                    P.append(get_point("P", element))
+                elif 'P' not in element and element != '':
+                    try:
+                        P.append(P[-1])
+                    except:
+                        P.append(0)
+                if 'F' in element:
+                    F.append(get_point("F", element))
+                elif 'F' not in element and element != '':
+                    try:
+                        F.append(F[-1])
+                    except:
+                        F.append(0)
+                if 'S' in element:
+                    S.append(get_point("S", element))
+                elif 'S' not in element and element != '':
+                    try:
+                        S.append(S[-1])
+                    except:
+                        S.append(0)
                 if "X" in element and "Y" in element and "Z" in element:
                     X.append(get_point("X", element))
                     Y.append(get_point("Y", element))
@@ -114,25 +135,29 @@ def gCode_interpreter(g_code, path = None, verbose=False):
         except:
             print(f"Exeception in: {element}")
 
+    # print(command, X, Y, Z, I, J, R, S, P, F)
+
     rslt = 60
     coordinates = []
     for c in range(len(command)):
         try:
-            coordinates.append([X[c], Y[c], Z[c]])
+            coordinates.append([X[c], Y[c], Z[c], P[c], F[c], S[c]])
             if command[c + 1] == "G03":
                 i, j = arcInterpolation_3(X[c], X[c + 1], Y[c], Y[c + 1], R[c + 1], I[c + 1], J[c + 1], resolution=rslt,
                                           G02=False)
                 for x_c, y_c in zip(i, j):
-                    coordinates.append([x_c, y_c, Z[c]])
+                    coordinates.append([x_c, y_c, Z[c], P[c], F[c], S[c]])
             if command[c + 1] == "G02":
                 i, j = arcInterpolation_3(X[c], X[c + 1], Y[c], Y[c + 1], R[c + 1], I[c + 1], J[c + 1], resolution=rslt,
                                           G02=True)
                 for x_c, y_c in zip(i, j):
-                    coordinates.append([x_c, y_c, Z[c]])
+                    # print(P[c], F[c], S[c])
+                    coordinates.append([x_c, y_c, Z[c], P[c], F[c], S[c]])
         except:
             pass
 
     coordinates = np.array(coordinates)
+    coordinates = coordinates[~np.isnan(coordinates).any(axis=1),:]
 
 
     if verbose:

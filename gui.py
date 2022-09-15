@@ -90,18 +90,18 @@ class App:
     def widgets(self, app):
 
         # Toggles
-        self.toggle_Laser = ToggleButton(app, 50, 135, 7, 1)
+        self.toggle_Laser = ToggleButton(app, 50, 130, 7, 1)
 
         # Text Box
-        self.txtBox_Power = tk.Text(app, height=1, width=6)
         self.txtBox_Gcode = tk.Text(app, height=20, width=60)
-        self.txtBox_FeedRate = tk.Text(app, height=1, width=6)
-        self.txtBox_SpeedAxis = tk.Text(app, height=1, width=6)
+        self.txtBox_Power = tk.Text(app, height=1, width=8)
+        self.txtBox_FeedRate = tk.Text(app, height=1, width=8)
+        self.txtBox_SpeedAxis = tk.Text(app, height=1, width=8)
 
         self.txtBox_Gcode.place(x=50, y=250)
         self.txtBox_Power.place(x=120, y=135)
-        self.txtBox_FeedRate.place(x=180, y=135)
-        self.txtBox_SpeedAxis.place(x=240, y=135)
+        self.txtBox_FeedRate.place(x=200, y=135)
+        self.txtBox_SpeedAxis.place(x=280, y=135)
 
         self.txtBox_SpeedAxis.insert(tk.END, str(self.speed))
         self.txtBox_FeedRate.insert(tk.END, str(self.feed_rate))
@@ -110,45 +110,46 @@ class App:
         # Labels
         self.label_title = tk.Label(app, text="3D GLASS PRINTER", font=('CopperplateGothicLight 20'))
         self.label_image = tk.Label(app, image=self.img_Logo)
-        self.label_importGcode = tk.Label(app, text="Import G Code:", font=('Arial 12'))
+        self.label_LaserPower = tk.Label(app, text="Power")
+        self.label_FeedRate = tk.Label(app, text="Feed Rate")
+        self.label_AxisSpeed = tk.Label(app, text="Axis Speed")
+        # self.label_importGcode = tk.Label(app, text="Import G Code:", font=('Arial 12'))
 
         self.label_title.place(x=380, y=30)
         self.label_image.place(x=900, y=10)
-        self.label_importGcode.place(x=50, y=100)
+        self.label_LaserPower.place(x=120, y=110)
+        self.label_FeedRate.place(x=200, y=110)
+        self.label_AxisSpeed.place(x=280, y=110)
+        # self.label_importGcode.place(x=50, y=100)
 
         # Buttons
-        self.button_importGCODE = tk.Button(app, text='Open', command=self.setTextInput, width=10)
+        self.button_importGCODE = tk.Button(app, text='Import G-Code', command=self.setTextInput, width=15)
         self.button_start = tk.Button(app, text='Start printing', command=self.startPrinting, height=3, width=18)
         self.button_stop = tk.Button(app, text='Stop process', command=self.stopProcess, height=3, width=18)
         self.button_saveGcode = tk.Button(app, text='Save G_Code', command=self.saveGCODE, width=15)
         self.button_visualize = tk.Button(app, text='Visualize G Code', command=self.visualization, width=15)
         self.button_loadGcode = tk.Button(app, text='Load G-code', command=self.loadGcode, width=15)
 
-        self.button_importGCODE.place(x=170, y=100)
         self.button_start.place(x=50, y=180)
         self.button_stop.place(x=250, y=180)
         self.button_saveGcode.place(x=50, y=600)
         self.button_visualize.place(x=200, y=600)
         self.button_loadGcode.place(x=350, y=600)
+        self.button_importGCODE.place(x=500, y=600)
 
     def setTextInput(self):
         self.path = filedialog.askopenfilename()
         g_code = open(self.path, 'r').read()
         self.txtBox_Gcode.delete(1.0, "end")
         self.txtBox_Gcode.insert(1.0, g_code)
-        self.coordinates = gCode_interpreter(g_code, verbose=False) * self.scale
         return None
 
     def loadGcode(self):
         g_code = self.txtBox_Gcode.get("1.0", "end-1c")
-        self.coordinates = gCode_interpreter(g_code, verbose=False) * self.scale
-        self.coordinates = gm.downSampling(self.coordinates, 0.1)
-        fig = go.Figure(data=[go.Scatter3d(x=self.coordinates[:, 0], y=self.coordinates[:, 1],
-                                           z=self.coordinates[:, 2], marker=dict(size=6,
-                                           color="darkblue", colorscale='electric'),
-                                           line=dict(color='slategray', width=2))])
-        fig.show()
+        self.coordinates = gCode_interpreter(g_code, verbose=False)
+        # self.coordinates = gm.downSampling(self.coordinates, 0.1)
         print("G Code loaded")
+        print(self.coordinates)
 
     def startPrinting(self):
         print("Starting Printer")
@@ -166,7 +167,9 @@ class App:
     def motorRun(self):
         while True:
             if self.coordinates is not None:
-                X, Y, Z = self.coordinates[:, 0], self.coordinates[:, 1], self.coordinates[:, 2]
+                X, Y, Z = self.coordinates[:, 0] * self.scale, \
+                          self.coordinates[:, 1] * self.scale, \
+                          self.coordinates[:, 2] * self.scale
                 cnt = 0
             while self.runMotors:
                 print(f'X: {X[cnt]}, Y: {Y[cnt]}, Z: {Z[cnt]}')
@@ -192,7 +195,7 @@ class App:
         while True:
             if self.toggle_Laser.status == 'ON':
                 self.ls.enable()
-                print('Enable')
+                print('Laser Enable')
                 time.sleep(3)
                 try:
                     while self.toggle_Laser.status == 'ON':
@@ -224,8 +227,12 @@ class App:
         print(self.path)
 
     def visualization(self):
-        g_code = self.txtBox_Gcode.get("1.0", "end-1c")
-        gCode_interpreter(g_code, verbose=True)
+        fig = go.Figure(data=[go.Scatter3d(x=self.coordinates[:, 0], y=self.coordinates[:, 1],
+                                           z=self.coordinates[:, 2], marker=dict(size=6,
+                                                                                 color="darkblue",
+                                                                                 colorscale='electric'),
+                                           line=dict(color='slategray', width=2))])
+        fig.show()
 
 
 if __name__ == "__main__":

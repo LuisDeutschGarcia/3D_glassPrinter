@@ -3,6 +3,7 @@ from PIL import Image as image
 from tkinter import filedialog
 from Gcode_Interpreter import *
 
+import plotly.graph_objects as go
 import ThermalCamera as TC
 import tkinter as tk
 import geometries as gm
@@ -21,8 +22,8 @@ def load_image(path, scale):
 
 
 class ToggleButton:
-    def __init__(self, parent, pos_X=0, pos_Y=0, width=15):
-        self.toggleButton = tk.Button(parent, text="OFF", width=width, command=self.simpleToggle)
+    def __init__(self, parent, pos_X=0, pos_Y=0, width=15, height=0.5):
+        self.toggleButton = tk.Button(parent, text="OFF", height=height, width=width, command=self.simpleToggle)
         self.toggleButton.place(x=pos_X, y=pos_Y)
 
         self.status = self.toggleButton.config('text')[-1]
@@ -41,18 +42,21 @@ class App:
         parent.title("3D Glas Printer")
         parent.geometry("1000x650")
 
-        self.img_Logo = load_image(r"../../3D_Glass_Simulator_Architecture\GUI\Images\NotreDameLogo.png", 0.07)
+        self.img_Logo = load_image(r"Images/NotreDameLogo.png", 0.07)
         self.power = 0
         self.firstRun = 0
         self.runMotors = False
         self.coordinates = None
         self.path = None
+        self.scale = 1000
+        self.speed = float(325)
+        self.feed_rate = float(1)
 
         # Declare all the serial motor IDs
-        self.x = ax.axis("b'xi-com:\\\\.\\COM5'")
-        self.y = ax.axis("b'xi-com:\\\\.\\COM4'")
-        self.z = ax.axis("b'xi-com:\\\\.\\COM6'")
-        self.a = ax.axis("b'xi-com:\\\\.\\COM7'")
+        self.x = ax.axis(b'xi-com:\\\\.\\COM5')
+        self.y = ax.axis(b'xi-com:\\\\.\\COM4')
+        self.z = ax.axis(b'xi-com:\\\\.\\COM6')
+        self.a = ax.axis(b'xi-com:\\\\.\\COM7')
 
         # Laser
         self.ls = Laser.laser()
@@ -78,22 +82,30 @@ class App:
         self.y.init()
         self.z.init()
         self.a.init()
-
         self.ls.init()
 
+        time.sleep(2)
         print("Device communication successfully")
 
     def widgets(self, app):
 
         # Toggles
-        self.toggle_Laser = ToggleButton(app, 50, 135,7)
+        self.toggle_Laser = ToggleButton(app, 50, 135, 7, 1)
 
         # Text Box
-        self.txtBox_Power = tk.Text(app, height=1.4999, width=6)
+        self.txtBox_Power = tk.Text(app, height=1, width=6)
         self.txtBox_Gcode = tk.Text(app, height=20, width=60)
+        self.txtBox_FeedRate = tk.Text(app, height=1, width=6)
+        self.txtBox_SpeedAxis = tk.Text(app, height=1, width=6)
 
         self.txtBox_Gcode.place(x=50, y=250)
         self.txtBox_Power.place(x=120, y=135)
+        self.txtBox_FeedRate.place(x=180, y=135)
+        self.txtBox_SpeedAxis.place(x=240, y=135)
+
+        self.txtBox_SpeedAxis.insert(tk.END, str(self.speed))
+        self.txtBox_FeedRate.insert(tk.END, str(self.feed_rate))
+        self.txtBox_Power.insert(tk.END, str(0.0))
 
         # Labels
         self.label_title = tk.Label(app, text="3D GLASS PRINTER", font=('CopperplateGothicLight 20'))
@@ -124,65 +136,84 @@ class App:
         g_code = open(self.path, 'r').read()
         self.txtBox_Gcode.delete(1.0, "end")
         self.txtBox_Gcode.insert(1.0, g_code)
-        self.coordinates = gCode_interpreter(g_code, verbose=False)
+        self.coordinates = gCode_interpreter(g_code, verbose=False) * self.scale
         return None
 
     def loadGcode(self):
         g_code = self.txtBox_Gcode.get("1.0", "end-1c")
-        self.coordinates = gCode_interpreter(g_code, verbose=False)
+        self.coordinates = gCode_interpreter(g_code, verbose=False) * self.scale
+        self.coordinates = gm.downSampling(self.coordinates, 0.1)
+        fig = go.Figure(data=[go.Scatter3d(x=self.coordinates[:, 0], y=self.coordinates[:, 1],
+                                           z=self.coordinates[:, 2], marker=dict(size=6,
+                                           color="darkblue", colorscale='electric'),
+                                           line=dict(color='slategray', width=2))])
+        fig.show()
         print("G Code loaded")
 
     def startPrinting(self):
         print("Starting Printer")
         if self.firstRun == 0 and self.coordinates is not None:
-            self.motorsThread.start()
             self.runMotors = True
             self.firstRun += 1
+            self.motorsThread.start()
         elif self.coordinates is not None and self.firstRun > 0:
             print(f"Restarting printing process")
             self.runMotors = True
+            self.firstRun += 1
         else:
             print("There are no G Code in the system")
 
     def motorRun(self):
-        X, Y, Z = self.coordinates[:, 0], self.coordinates[:, 1], self.coordinates[:, 2]
-        cnt = 0
-
-        while cnt <= len(X):
+        while True:
+            if self.coordinates is not None:
+                X, Y, Z = self.coordinates[:, 0], self.coordinates[:, 1], self.coordinates[:, 2]
+                cnt = 0
             while self.runMotors:
-                time_start = time.time()
-                self.a.axis_move(-1000, speed=1.0)
-                self.x.axis_move(X[cnt])
-                self.y.axis_move(Y[cnt])
-                self.z.axis_move(Z[cnt])
-                self.x.axis_stop(0.5)
-                self.y.axis_stop(0.5)
-                self.z.axis_stop(0.5)
+                print(f'X: {X[cnt]}, Y: {Y[cnt]}, Z: {Z[cnt]}')
+                self.a.axis_move(-10000, speed=self.feed_rate)
+                self.x.axis_move(int(X[cnt].item()), speed=self.speed)
+                self.y.axis_move(int(Y[cnt].item()), speed=self.speed)
+                self.z.axis_move(int(Z[cnt].item()), speed=self.speed)
+                self.x.axis_stop(10)
+                self.y.axis_stop(10)
+                self.z.axis_stop(10)
+
+                if cnt >= len(X) - 1:
+                    self.runMotors = False
+                    self.coordinates = None
+                    cnt = 0
                 cnt += 1
-                print(self.runMotors, cnt)
-                print(f"Positions: {self.x.axis_getPosition()}, "
-                      f"{self.y.axis_getPosition()}, {self.z.axis_getPosition()}."
-                      f"Loop time: {time.time() - time_start}")
 
-            self.coordinates = np.array([[x, y, z] for x, y, z in zip(X[cnt:], Y[cnt:], Z[cnt:])])
-
-        if cnt >= len(X):
-            self.firstRun = 0
-            self.coordinates = None
+            if cnt <= len(X):
+                # self.coordinates = np.array([[x, y, z] for x, y, z in zip(X[cnt:], Y[cnt:], Z[cnt:])])
+                X, Y, Z = X[cnt:], Y[cnt:], Z[cnt:]
 
     def activateLaser(self):
         while True:
             if self.toggle_Laser.status == 'ON':
                 self.ls.enable()
+                print('Enable')
                 time.sleep(3)
-                while self.toggle_Laser.status == 'ON':
-                    if self.power != self.txtBox_Power.get("1.0", "end-1c"):
-                        self.power = int(self.txtBox_Power.get("1.0", "end-1c"))
-                        self.ls.on(self.power)
-                    time.sleep(0.5)
+                try:
+                    while self.toggle_Laser.status == 'ON':
+                        power_Box = int(self.txtBox_Power.get("1.0", "end-1c"))
+                        feed_rate = float(self.txtBox_FeedRate.get("1.0", "end-1c"))
+                        speed = float(self.txtBox_SpeedAxis.get("1.0", "end-1c"))
+                        if self.power != power_Box:
+                            self.ls.on(power_Box)
+                            self.power = power_Box
+                            print(self.power)
+                        if self.feed_rate != feed_rate:
+                            self.feed_rate = feed_rate
+                            print(f'Feed Rate = {self.feed_rate}')
+                        if self.speed != speed:
+                            self.speed = speed
+                            print(f'Speed = {self.speed}')
+                        time.sleep(0.5)
+                except:
+                    pass
             else:
                 self.ls.off()
-                print("Laser Off")
 
     def stopProcess(self):
         self.runMotors = False

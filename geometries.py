@@ -1,5 +1,6 @@
 import numpy as np
 import plotly.express as px
+import plotly.graph_objects as go
 
 
 def snake(no_lines=8, plot=False):
@@ -26,28 +27,108 @@ def snake(no_lines=8, plot=False):
 
     return np.array([[x, y, z] for x, y, z in zip(x_s, y_s, [0] * no_lines * 2)])
 
-def specific_spiral():
+def specific_spiral(plot=False):
     radius = 6
     circle = np.array([[radius * np.cos(angle), radius * np.sin(angle), 0] for angle in np.arange(0, 2 * np.pi, 0.05)])
     x, y, z = list(circle[:,0]), list(circle[:,1]), list(circle[:,2])
 
     sample = 400
-    z_s = list(np.linspace(0, 10, sample) * -2)
+    z_s = list(np.linspace(0, 10, sample * 2) * -2)
     r_s = (np.linspace(0, 10, sample)) + radius
     theta = np.linspace(0,8 * np.pi, sample)
+    cnt = 0
     for i in range(len(theta)):
         x.append(r_s[i] * np.cos(theta[i]))
         y.append(r_s[i] * np.sin(theta[i]))
         z.append(z_s[i])
+        cnt += 1
+
+    r_s = (np.linspace(10, 0, sample)) + radius
+
+    for i in range(len(theta)):
+        x.append(r_s[i] * np.cos(theta[i]))
+        y.append(r_s[i] * np.sin(theta[i]))
+        z.append(z_s[cnt])
+        cnt += 1
 
     sprl = np.array([[X,Y,Z] for X,Y,Z in zip(x,y,z)])
+
+    if plot:
+        fig = px.scatter_3d(x=x, y=y, z=z)
+        fig.show()
+
     return sprl
 
+def lens(plot=False):
+    radius = 2
+    circle = np.array([[radius * np.cos(angle), radius * np.sin(angle), 0] for angle in np.arange(0, 2 * np.pi, 0.3)])
+    x, y, z = list(circle[:, 0]), list(circle[:, 1]), list(circle[:, 2])
+
+    sample = 200
+    z_s = np.linspace(0, 8, sample) * - 1
+    r_s = (np.linspace(0, 5, sample)) + radius
+    theta = np.linspace(0, 8 * np.pi, sample)
+    cnt = 0
+    vl = 0
+    for i in range(len(theta)):
+        x.append(r_s[i] * np.cos(theta[i] - vl))
+        y.append(r_s[i] * np.sin(theta[i] - vl))
+        z.append(z_s[i])
+        cnt += 1
+
+    x = np.array(x)
+    y = np.array(y)
+
+    x = x - x[0]
+    y = y - y[0]
+
+    sprl = np.array([[X, Y, Z] for X, Y, Z in zip(x, y, z)])
+
+
+    if plot:
+        fig = px.scatter_3d(x=x, y=y, z=z)
+        fig.show()
+
+    return sprl
+
+def normalize(x):
+    return (x - np.min(x)) / (np.max(x) - np.min(x))
+
+def lens2(plot=False):
+
+    theta = np.radians(np.linspace(0, 360 * 5, 1000))
+    r = theta
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+
+    x = normalize(x)
+    y = normalize(y)
+
+    x_new = list(x)
+    y_new = list(y)
+
+    for x_1, y_1 in zip(x[::-1], y[::-1]):
+        x_new.append(x_1)
+        y_new.append(y_1)
+
+    z = np.zeros(len(x_new))
+
+    x = x_new - x_new[0]
+    y = y_new - y_new[0]
+
+    sprl = np.array([[X, Y, Z] for X, Y, Z in zip(x, y, z)])
+
+    if plot:
+        fig = px.scatter_3d(x=x, y=y, z=z)
+        fig.show()
+
+    return sprl
 
 def spiral(plot=False):
-    circle = np.array([[3 * np.cos(angle), 3 * np.sin(angle),0] for angle in np.arange(0, 2 * np.pi,0.05)])
+    # circle = np.array([[3 * np.cos(angle), 3 * np.sin(angle),0] for angle in np.arange(0, 2 * np.pi,0.05)])
+
     sample = 250
-    theta = np.linspace(0, 15 * np.pi, sample)
+    theta = np.linspace(0, 20 * np.pi, sample)
     z_s = np.linspace(0, 20, sample) * 2
     r_s = (z_s / 8)
     x_s = r_s * np.sin(theta) * 2
@@ -58,8 +139,6 @@ def spiral(plot=False):
     if plot:
         fig = px.scatter_3d(x=x_s, y=y_s, z=z_s)
         fig.show()
-
-    # return circle
 
     return spiral
 
@@ -92,36 +171,6 @@ def cube(height=1, plot=False):
     return np.array([[x, y, z + i * height] for i in range(10) for x, y, z in zip(X, Y, Z)])
 
 
-def tecLogo():
-    coordinates = np.array([[0.56, -0.96, 0.],
-                            [0.98, -1.37, 0.],
-                            [1.68, -1.98, 0.],
-                            [2.04, -2.28, 0.],
-                            [2.96, -2.77, 0.],
-                            [3.56, -2.94, 0.],
-                            [4., -3., 0.],
-                            [4., -5., 0.],
-                            [6., -5., 0.],
-                            [6., -3., 0.],
-                            [6.48, -2.92, 0.],
-                            [6.98, -2.74, 0.],
-                            [7.74, -2.36, 0.],
-                            [8.26, -2.02, 0.],
-                            [9., -1.38, 0.],
-                            [9.44, -1., 0.],
-                            [10., 0., 0.],
-                            [0.52, 3.06, 0.],
-                            [4.25, 8.37, 0.],
-                            [1.46, 2.03, 0.],
-                            [6.59, 8.73, 0.],
-                            [3.04, 0.72, 0.],
-                            [7.36, 6.75, 0.],
-                            [5.56, 0.72, 0.],
-                            [9.65, 7.16, 0.],
-                            [7.72, 0.63, 0.],
-                            [9.7, 3.87, 0.]])
-
-    return coordinates
 
 def downSampling(coordinates, rate = 0.7):
 

@@ -8,7 +8,8 @@ def get_point(char,s):
     return float(res_f[res_f.index(char)+1])
 
 
-def arcInterpolation_3(x1, x2, y1, y2, R, I, J, resolution = 50, G02=True):
+def arcInterpolation_3(x1, x2, y1, y2, R, I, J, resolution = 10, G02=True):
+
     Chord = np.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
     if R == 0:
@@ -137,7 +138,7 @@ def gCode_interpreter(g_code, path = None, verbose=False):
 
     # print(command, X, Y, Z, I, J, R, S, P, F)
 
-    rslt = 60
+    rslt = 20
     coordinates = []
     for c in range(len(command)):
         try:

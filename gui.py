@@ -6,12 +6,10 @@ from Gcode_Interpreter import *
 import plotly.graph_objects as go
 import ThermalCamera as TC
 import tkinter as tk
-import geometries as gm
 import Axis as ax
 import threading
-import logging
 import socket
-import Laser
+import Laser_2 as laser
 import time
 
 
@@ -36,10 +34,10 @@ class ToggleButton:
             self.toggleButton.config(text='ON')
             self.status = self.toggleButton.config('text')[-1]
 
-
 class App:
     def __init__(self, parent):
-        parent.title("3D Glas Printer")
+
+        parent.title("3D Glass Printer")
         parent.geometry("1000x650")
 
         self.img_Logo = load_image(r"Images/NotreDameLogo.png", 0.07)
@@ -48,18 +46,19 @@ class App:
         self.runMotors = False
         self.coordinates = None
         self.path = None
+
         self.scale = 1000
-        self.speed = float(325)
-        self.feed_rate = float(1)
+        self.speed = float(2500.0)
+        self.feed_rate = float(2.5)
 
         # Declare all the serial motor IDs
-        self.x = ax.axis(b'xi-com:\\\\.\\COM5')
         self.y = ax.axis(b'xi-com:\\\\.\\COM4')
+        self.x = ax.axis(b'xi-com:\\\\.\\COM5')
         self.z = ax.axis(b'xi-com:\\\\.\\COM6')
         self.a = ax.axis(b'xi-com:\\\\.\\COM7')
 
         # Laser
-        self.ls = Laser.laser()
+        self.ls = laser.IPG_Laser()
 
         # Thermal Camera
         self.thermalCamera = TC.ThermalCamera()
@@ -82,6 +81,7 @@ class App:
         self.y.init()
         self.z.init()
         self.a.init()
+
         self.ls.init()
 
         time.sleep(2)
@@ -149,7 +149,7 @@ class App:
         self.coordinates = gCode_interpreter(g_code, verbose=False)
         # self.coordinates = gm.downSampling(self.coordinates, 0.1)
         print("G Code loaded")
-        print(self.coordinates)
+        # print(self.coordinates)
 
     def startPrinting(self):
         print("Starting Printer")
@@ -165,15 +165,33 @@ class App:
             print("There are no G Code in the system")
 
     def motorRun(self):
+        cnt = 0
+        X, Y, Z = None, None, None
+        feed_rate = self.feed_rate
         while True:
-            if self.coordinates is not None:
+            if self.coordinates is not None and cnt == 0:
                 X, Y, Z = self.coordinates[:, 0] * self.scale, \
                           self.coordinates[:, 1] * self.scale, \
                           self.coordinates[:, 2] * self.scale
-                cnt = 0
+                feed_rate = float(self.txtBox_FeedRate.get("1.0", "end-1c"))
+                if self.feed_rate != feed_rate:
+                    print(f'Feed Rate at {feed_rate}')
+                    self.a.feeder_move(20000, speed_m=self.feed_rate)
+
+            tmp = time.time()
+
             while self.runMotors:
+                feed_rate = float(self.txtBox_FeedRate.get("1.0", "end-1c"))
+                speed = float(self.txtBox_SpeedAxis.get("1.0", "end-1c"))
+                if self.speed != speed:
+                    self.speed = speed
+                    print(f'Speed = {self.speed}')
+                print(f'Total number of remaining points: {len(X) - cnt}')
                 print(f'X: {X[cnt]}, Y: {Y[cnt]}, Z: {Z[cnt]}')
-                self.a.axis_move(-10000, speed=self.feed_rate)
+                if self.feed_rate != feed_rate or cnt == 0:
+                    print(f'Feed Rate {self.feed_rate}')
+                    self.a.feeder_move(20000, speed_m=feed_rate)
+                    self.feed_rate = feed_rate
                 self.x.axis_move(int(X[cnt].item()), speed=self.speed)
                 self.y.axis_move(int(Y[cnt].item()), speed=self.speed)
                 self.z.axis_move(int(Z[cnt].item()), speed=self.speed)
@@ -181,15 +199,17 @@ class App:
                 self.y.axis_stop(10)
                 self.z.axis_stop(10)
 
+                if not self.runMotors:
+                    self.a.feeder_move(0, speed_m=10 * self.feed_rate)
+
                 if cnt >= len(X) - 1:
                     self.runMotors = False
                     self.coordinates = None
                     cnt = 0
-                cnt += 1
+                    print(f'Tiempo de ejecucion: {tmp - time.time()}')
+                else:
+                    cnt += 1
 
-            if cnt <= len(X):
-                # self.coordinates = np.array([[x, y, z] for x, y, z in zip(X[cnt:], Y[cnt:], Z[cnt:])])
-                X, Y, Z = X[cnt:], Y[cnt:], Z[cnt:]
 
     def activateLaser(self):
         while True:
@@ -199,20 +219,12 @@ class App:
                 time.sleep(3)
                 try:
                     while self.toggle_Laser.status == 'ON':
-                        power_Box = int(self.txtBox_Power.get("1.0", "end-1c"))
-                        feed_rate = float(self.txtBox_FeedRate.get("1.0", "end-1c"))
-                        speed = float(self.txtBox_SpeedAxis.get("1.0", "end-1c"))
+                        power_Box = float(self.txtBox_Power.get("1.0", "end-1c"))
                         if self.power != power_Box:
                             self.ls.on(power_Box)
                             self.power = power_Box
                             print(self.power)
-                        if self.feed_rate != feed_rate:
-                            self.feed_rate = feed_rate
-                            print(f'Feed Rate = {self.feed_rate}')
-                        if self.speed != speed:
-                            self.speed = speed
-                            print(f'Speed = {self.speed}')
-                        time.sleep(0.5)
+                        time.sleep(0.05)
                 except:
                     pass
             else:
@@ -227,10 +239,12 @@ class App:
         print(self.path)
 
     def visualization(self):
-        fig = go.Figure(data=[go.Scatter3d(x=self.coordinates[:, 0], y=self.coordinates[:, 1],
-                                           z=self.coordinates[:, 2], marker=dict(size=6,
-                                                                                 color="darkblue",
-                                                                                 colorscale='electric'),
+        fig = go.Figure(data=[go.Scatter3d(x=self.coordinates[:, 0] * self.scale,
+                                           y=self.coordinates[:, 1] * self.scale,
+                                           z=self.coordinates[:, 2] * self.scale,
+                                           marker=dict(size=6,
+                                           color="darkblue",
+                                           colorscale='electric'),
                                            line=dict(color='slategray', width=2))])
         fig.show()
 

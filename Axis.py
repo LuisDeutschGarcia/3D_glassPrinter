@@ -1,10 +1,5 @@
-from ctypes import *
-import time
-import os
-import sys
-import platform
-import tempfile
-import re
+import numpy as np
+
 from Init_file import *
 
 class axis:
@@ -12,6 +7,7 @@ class axis:
         self.serial_number = serial_number
         self.flag_virtual = 0
         self.device_id = None
+        self.position = 0
 
     def init(self):
 
@@ -31,20 +27,53 @@ class axis:
         print( f"Device connected: {self.serial_number}")
 
         lib.command_zero(self.device_id)
+        eng = engine_settings_t()
+        # eng.MicrostepMode = MicrostepMode.MICROSTEP_MODE_FRAC_256
+        # lib.set_engine_settings(self.device_id, byref(eng))
+        print(EngineFlags.ENGINE_ACCEL_ON)
 
-    def axis_move(self, position, speed=500, accel=10000, decel=10000):
+    def axis_move(self, position, speed=500, uSpeed = 5, accel=1000000, decel=1000000):
+        speed, uSpeed = divmod(speed,1)
+        uSpeed = int(uSpeed * 256)
         mvst = move_settings_t()
-        mvst.Speed, mvst.Accel, mvst.Decel = int(speed), int(accel), int(decel)
+        mvst.Speed, mvst.uSpeed, mvst.Accel, mvst.Decel = int(speed), int(uSpeed), int(accel), int(decel)
         lib.set_move_settings(self.device_id, byref(mvst))
         lib.command_move(self.device_id, position, 0)
-        # lib.command_wait_for_stop(self.device_id, 100)
+        self.position = position
 
-    def axis_movr(self, position, speed=500, accel=10000, decel=10000):
+    def axis_move_p(self, position, speed=500, uSpeed = 5, accel=1000000, decel=1000000, arg = 0):
+        speed, uSpeed = divmod(speed,1)
+        uSpeed = int(uSpeed * 256)
+        if arg == 0:
+            mvst = move_settings_t()
+            mvst.Speed, mvst.uSpeed, mvst.Accel, mvst.Decel = int(speed), int(uSpeed), int(accel), int(decel)
+            lib.set_move_settings(self.device_id, byref(mvst))
+        lib.command_move(self.device_id, position)
+        self.position = position
+
+    def feeder_move(self, position, speed_m=5, uSpeed = 0, accel=2000, decel=10000):
+        speed = int((speed_m * 100) / (np.pi * 13.54))
+        uSpeed = int(((speed_m * 100) / (np.pi * 13.54) - speed) * 256)
+        mvst = move_settings_t()
+        mvst.Speed, mvst.uSpeed, mvst.Accel, mvst.Decel = int(speed), int(uSpeed), int(accel), int(decel)
+        lib.set_move_settings(self.device_id, byref(mvst))
+        lib.command_move(self.device_id, position, 0)
+        self.position = position
+
+    def axis_movr(self, position, speed=500, accel=2000, decel=10000):
         mvst = move_settings_t()
         mvst.Speed, mvst.Accel, mvst.Decel = int(speed), int(accel), int(decel)
         lib.set_move_settings(self.device_id, byref(mvst))
         lib.command_movr(self.device_id, position, 0)
-        # lib.command_wait_for_stop(self.device_id, 100)
+        self.position = position
+
+    def axis_movr_p(self, position, speed=500, uSpeed = 0, accel=2000, decel=10000, arg = 0):
+        if arg == 0:
+            mvst = move_settings_t()
+            mvst.Speed, mvst.uSpeed, mvst.Accel, mvst.Decel = int(speed), int(uSpeed), int(accel), int(decel)
+            lib.set_move_settings(self.device_id, byref(mvst))
+        lib.command_movr(self.device_id, position, 0)
+        self.position = position
 
     def axis_getPosition(self, verbose=False):
         axis_pos = get_position_t()
@@ -68,3 +97,4 @@ class axis:
 
     def axis_stop(self, time = 100):
         lib.command_wait_for_stop(self.device_id, time)
+        # print(f' Device: {self.serial_number} stopped')
